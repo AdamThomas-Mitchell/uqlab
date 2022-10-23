@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import uncertainty_toolbox as uct
-from uqlab import metrics
+from .metrics import get_proportion_lists
 
 
 def parity_plot(y_true, y_pred, plot_type='scatter', hist_bins=40, hexbin_size=40):
@@ -51,7 +51,7 @@ def calibration_plot(y_pred_mean, y_pred_std, y_test, calibrator=None, title='')
         uct.viz.plot_calibration(y_pred_mean, y_pred_std, y_test)
 
     else:
-        exp_prop, obs_prop = metrics.get_proportion_lists(y_test, y_pred_mean, y_pred_std, calibrator)
+        exp_prop, obs_prop = get_proportion_lists(y_test, y_pred_mean, y_pred_std, calibrator)
         uct.viz.plot_calibration(y_pred_mean, y_pred_std, y_test, exp_props=exp_prop, obs_props=obs_prop)
 
     # plt.title(title)
@@ -142,7 +142,7 @@ def all_plots(y_pred_mean, y_pred_std, y_true, title='', calibrator=None):
     else:
 
         # calibration plot
-        exp_prop, obs_prop = metrics.get_proportion_lists(y_true, y_pred_mean, y_pred_std, calibrator)
+        exp_prop, obs_prop = get_proportion_lists(y_true, y_pred_mean, y_pred_std, calibrator)
         axs[2] = uct.viz.plot_calibration(y_pred_mean, y_pred_std, y_true,
                                           exp_props=exp_prop, obs_props=obs_prop, ax=axs[2])
 
