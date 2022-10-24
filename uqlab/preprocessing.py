@@ -5,6 +5,7 @@ import math
 import numpy as np
 import pandas as pd
 import pkg_resources
+import torch
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
@@ -389,3 +390,29 @@ def prepare_glycine_system_data(train_prop, random_state=None):
     }
 
     return processed_glycine_dict
+
+
+def prepare_tensors(X_train, y_train, X_cal, y_cal, X_test, y_test):
+    """
+    Convert np arrays to torch tensor for model processing
+    Place tensors on GPU if available
+    :param X_train:
+    :param y_train:
+    :param X_cal:
+    :param y_cal:
+    :param X_test:
+    :param y_test:
+    :return:
+    """
+    X_train_torch, X_cal_torch, X_test_torch = map(torch.tensor, (X_train, X_cal, X_test))
+    y_train_torch, y_cal_torch, y_test_torch = map(torch.tensor, (y_train.flatten(), y_cal.flatten(), y_test.flatten()))
+
+    if torch.cuda.is_available():
+        X_train_torch = X_train_torch.cuda()
+        y_train_torch = y_train_torch.cuda()
+        X_cal_torch = X_cal_torch.cuda()
+        y_cal_torch = y_cal_torch.cuda()
+        X_test_torch = X_test_torch.cuda()
+        y_test_torch = y_test_torch.cuda()
+
+    return X_train_torch, y_train_torch, X_cal_torch, y_cal_torch, X_test_torch, y_test_torch
