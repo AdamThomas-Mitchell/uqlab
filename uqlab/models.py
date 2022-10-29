@@ -34,7 +34,7 @@ def manchester_kernel(X_dim):
     )
 
     # combine non-cyclic and cyclic kernels
-    kernel = noncyclic_kernel + cyclic_kernel
+    kernel = noncyclic_kernel * cyclic_kernel
 
     return kernel
 
