@@ -14,6 +14,10 @@ from .preprocessing import (
     prepare_glycine_system_data
 )
 
+from .preprocessing_test import (
+    GlycineDataLoader
+)
+
 from .models import (
     manchester_kernel
 )
