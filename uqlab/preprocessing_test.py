@@ -10,8 +10,255 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 
-class GlycineDataLoader:
+class WaterDimerDataLoader:
+    def __init__(self, n_train, n_cal, n_test, scale_output=True, as_tensor=True, random_state=None):
+        self.n_train = n_train
+        self.n_cal = n_cal
+        self.n_test = n_test
+        self.scale_output = scale_output
+        self.as_tensor = as_tensor
+        self.random_state = random_state
+        self.scaler_dict = {}
+        self.std_dict = {}
+        self.data_dict = self.prepare_water_dimer_system_data()
 
+    @staticmethod
+    def train_cal_test_split(X, y, train_size, cal_size, test_size, random_state=None):
+        """
+        Splits X and y data to train, calibration, and test sets
+        :param X:
+        :param y:
+        :param train_size:
+        :param cal_size:
+        :param test_size:
+        :param random_state:
+        :return:
+        """
+
+        # separate test set
+        X_train_and_cal, X_test, y_train_and_cal, y_test = train_test_split(
+            X, y,
+            test_size=test_size,
+            random_state=random_state
+        )
+
+        # separate train and cal sets
+        train_prop = train_size / (train_size + cal_size)
+        X_train, X_cal, y_train, y_cal = train_test_split(
+            X_train_and_cal, y_train_and_cal,
+            train_size=train_prop,
+            random_state=random_state
+        )
+
+        return X_train, y_train, X_cal, y_cal, X_test, y_test
+
+    @staticmethod
+    def scale_features(X_train, X_cal, X_test):
+        """
+        Scale only the non-cyclic features between ±pi
+        NOTE: Features are not in same order after this function is called
+        X is of form [X_noncyclic, X_cyclic]
+
+        :param X_train:
+        :param X_cal:
+        :param X_test:
+        :return:
+        """
+        n_dim = X_train.shape[1]
+
+        # list of indices for non-cyclic and cyclic features
+        noncyclic_dim_idx = [d - 1 for d in range(1, n_dim + 1) if not (d > 3 and d % 3 == 0)]
+        cyclic_dim_idx = [d - 1 for d in range(1, n_dim + 1) if (d > 3 and d % 3 == 0)]
+
+        # decompose X matrices into cyclic and non-cyclic features
+        X_train_cyclic = X_train[:, cyclic_dim_idx]
+        X_train_noncyc = X_train[:, noncyclic_dim_idx]
+
+        X_cal_cyclic = X_cal[:, cyclic_dim_idx]
+        X_cal_noncyc = X_cal[:, noncyclic_dim_idx]
+
+        X_test_cyclic = X_test[:, cyclic_dim_idx]
+        X_test_noncyc = X_test[:, noncyclic_dim_idx]
+
+        # scale non-cyclic features to lie between ±pi
+        scaler = MinMaxScaler(feature_range=(-math.pi, math.pi))
+        scaler.fit(X_train_noncyc)
+        X_train_noncyc_sc = scaler.transform(X_train_noncyc)
+        X_cal_noncyc_sc = scaler.transform(X_cal_noncyc)
+        X_test_noncyc_sc = scaler.transform(X_test_noncyc)
+
+        # join scaled non-cyclic features and unscaled cyclic features
+        X_train_adj = np.hstack((X_train_noncyc_sc, X_train_cyclic))
+        X_cal_adj = np.hstack((X_cal_noncyc_sc, X_cal_cyclic))
+        X_test_adj = np.hstack((X_test_noncyc_sc, X_test_cyclic))
+
+        return X_train_adj, X_cal_adj, X_test_adj
+
+    @staticmethod
+    def scale_targets(y_train, y_cal, y_test):
+        """
+        Standardise y values for easier comparison
+        :param y_train:
+        :param y_cal:
+        :param y_test:
+        :return:
+        """
+        # get info for rescaling first
+        std = np.std(y_train.flatten())
+
+        # now define scaler and transform arrays
+        scaler = StandardScaler()
+        scaler.fit(y_train)
+        y_train_sc = scaler.transform(y_train)
+        y_cal_sc = scaler.transform(y_cal)
+        y_test_sc = scaler.transform(y_test)
+
+        return y_train_sc, y_cal_sc, y_test_sc, scaler, std
+
+    @staticmethod
+    def prepare_tensors(X_train, y_train, X_cal, y_cal, X_test, y_test):
+        """
+        Convert np arrays to torch tensor for model processing
+        Place tensors on GPU if available
+        :param X_train:
+        :param y_train:
+        :param X_cal:
+        :param y_cal:
+        :param X_test:
+        :param y_test:
+        :return:
+        """
+        X_train_torch, X_cal_torch, X_test_torch = map(torch.tensor, (X_train, X_cal, X_test))
+        y_train_torch, y_cal_torch, y_test_torch = map(torch.tensor,
+                                                       (y_train.flatten(), y_cal.flatten(), y_test.flatten()))
+
+        if torch.cuda.is_available():
+            X_train_torch = X_train_torch.cuda()
+            y_train_torch = y_train_torch.cuda()
+            X_cal_torch = X_cal_torch.cuda()
+            y_cal_torch = y_cal_torch.cuda()
+            X_test_torch = X_test_torch.cuda()
+            y_test_torch = y_test_torch.cuda()
+
+        return X_train_torch, y_train_torch, X_cal_torch, y_cal_torch, X_test_torch, y_test_torch
+
+    @staticmethod
+    def get_water_dimer_data():
+        """
+        Import water dimer data and return in dictionary form
+        """
+        stream_H2 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H2_training_set_22k_random.csv')
+        stream_H3 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H3_training_set_22k_random.csv')
+        stream_H5 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H5_training_set_22k_random.csv')
+        stream_H6 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H6_training_set_22k_random.csv')
+        stream_O1 = pkg_resources.resource_stream(__name__, 'data/waterDimer/O1_training_set_22k_random.csv')
+        stream_O4 = pkg_resources.resource_stream(__name__, 'data/waterDimer/O4_training_set_22k_random.csv')
+
+        H2_reduced_set = pd.read_csv(stream_H2)
+        H3_reduced_set = pd.read_csv(stream_H3)
+        H5_reduced_set = pd.read_csv(stream_H5)
+        H6_reduced_set = pd.read_csv(stream_H6)
+        O1_reduced_set = pd.read_csv(stream_O1)
+        O4_reduced_set = pd.read_csv(stream_O4)
+
+        waterDimer_dict = {
+            'H2': H2_reduced_set,
+            'H3': H3_reduced_set,
+            'H5': H5_reduced_set,
+            'H6': H6_reduced_set,
+            'O1': O1_reduced_set,
+            'O4': O4_reduced_set
+        }
+
+        return waterDimer_dict
+
+    def prepare_water_dimer_atom(self, atom_dataset, atom_label):
+        """
+        return preprocessed train, calibration, and test data for given water dimer atom
+        :param atom_dataset:
+        :param atom_label:
+        :return:
+        """
+        # select subset of sample points from full atom dataset
+        n_total_pts = self.n_train + self.n_cal + self.n_test
+        atom_subset = atom_dataset.sample(n=n_total_pts, random_state=self.random_state)
+
+        # separate X and y values
+        X = atom_subset.iloc[:, 0:12]
+        y = atom_subset['iqa']
+
+        # restructure data
+        X = X.to_numpy()  # (num_samples, num_dim)
+        y = y.to_numpy().reshape(-1, 1)  # (num_samples, 1)
+
+        # split into train/calibration/test sets
+        train_prop = self.n_train / n_total_pts
+        cal_prop = self.n_cal / n_total_pts
+        test_prop = 1.0 - (train_prop + cal_prop)
+        X_train, y_train, X_cal, y_cal, X_test, y_test = self.train_cal_test_split(
+            X, y,
+            train_size=train_prop, cal_size=cal_prop, test_size=test_prop,
+            random_state=self.random_state
+        )
+
+        # scale features and targets (optional)
+        X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
+        if self.scale_output:
+            y_train, y_cal, y_test, scaler, std = self.scale_targets(y_train, y_cal, y_test)
+            self.scaler_dict[atom_label] = scaler  # save this to revert scaling later
+            self.std_dict[atom_label] = std
+
+        # prepare as tensors (optional)
+        if self.as_tensor:
+            X_train, y_train, X_cal, y_cal, X_test, y_test = self.prepare_tensors(
+                X_train, y_train, X_cal, y_cal, X_test, y_test
+            )
+
+        atom_data_dict = {
+            'train': (X_train, y_train),
+            'cal': (X_cal, y_cal),
+            'test': (X_test, y_test)
+        }
+
+        return atom_data_dict
+
+    def prepare_water_dimer_system_data(self):
+        """
+        Return dictionary of preprocessed data for each atom in water dimer system
+        Returned dict is of form;
+
+        dict = {'H1': {'train': (X_train, y_train),
+                       'cal': (X_cal, y_cal),
+                       'test': (X_test, y_test)},
+                'H2': ...}
+
+        :return:
+        """
+        waterDimer_dict = self.get_water_dimer_data()
+
+        processed_waterDimer_dict = {
+            key: self.prepare_water_dimer_atom(
+                value,
+                key
+            )
+            for key, value in waterDimer_dict.items()
+        }
+
+        return processed_waterDimer_dict
+
+    def unscale_targets(self, y_test, y_pred_mean, y_pred_std, atom_label):
+
+        scaler = self.scaler_dict[atom_label]
+        std = self.std_dict[atom_label]
+
+        y_test_unscaled = scaler.inverse_transform(y_test.reshape(-1, 1))
+        y_pred_mean_unscaled = scaler.inverse_transform(y_pred_mean.reshape(-1, 1))
+        y_pred_std_unscaled = y_pred_std * std
+
+        return y_test_unscaled.flatten(), y_pred_mean_unscaled.flatten(), y_pred_std_unscaled
+
+
+class GlycineDataLoader:
     def __init__(self, train_prop, scale_output=True, as_tensor=True, random_state=None):
         self.train_prop = train_prop
         self.targets_scaled = scale_output
@@ -291,7 +538,8 @@ class GlycineDataLoader:
 
         processed_glycine_dict = {
             key: self.prepare_glycine_atom(
-                value, key
+                value,
+                key
             )
             for key, value in glycine_dict.items()
         }
