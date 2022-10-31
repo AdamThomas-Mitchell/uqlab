@@ -328,7 +328,7 @@ class WaterDimerDataLoaderTest(DataLoader):
         self.n_train = n_train
         self.n_cal = n_cal
         self.n_test = n_test
-        self.data_dict = None
+        self.data_dict = self.prepare_water_dimer_system_data()
 
     @staticmethod
     def train_cal_test_split(X, y, train_size, cal_size, test_size, random_state=None):
