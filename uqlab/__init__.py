@@ -1,21 +1,11 @@
 """uqlab: a python package for to perform post-hoc calibration and measure accuracy and uncertainty quantification."""
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 from .preprocessing import (
-    get_water_dimer_data,
-    train_cal_test_split,
-    scale_features,
-    scale_targets,
-    prepare_water_dimer_atom,
-    prepare_water_dimer_system_data,
-    get_glycine_data,
-    prepare_glycine_atom,
-    prepare_glycine_system_data
-)
-
-from .preprocessing_test import (
-    GlycineDataLoader
+    DataLoader,
+    WaterDimerLoader,
+    GlycineLoader
 )
 
 from .models import (
