@@ -130,6 +130,13 @@ def proportion_in_interval(y_true, y_pred_mean, y_pred_std, quantile_level, cali
         p_upper = 1.0 - p_lower
 
         num_in_range = 0
+
+        '''
+        This may be whats slowing down metrics calculation - vectorise 
+        '''
+
+
+
         for j in range(len(y_true)):
 
             lower_bnd = norm.ppf(p_lower, y_pred_mean[j], y_pred_std[j])

@@ -4,10 +4,11 @@ import torch
 import gpytorch
 
 
-def manchester_kernel(X_dim):
+def manchester_kernel(X_dim, base_kernel='RBF'):
     """
     Custom kernel for GPyTorch models following manchester convention
     non-cyclic features have an RBF kernel, cyclic features have periodic kernel with period set to 2pi
+    :param base_kernel:
     :param X_dim:
     :return:
     """
@@ -18,10 +19,18 @@ def manchester_kernel(X_dim):
     n_cyclic = len(cyclic_dim_idx)
 
     # define kernel for non-cyclic features
-    noncyclic_kernel = gpytorch.kernels.RBFKernel(
-        ard_num_dims=n_noncyclic,
-        active_dims=np.arange(X_dim)[:n_noncyclic]
-    )
+    if base_kernel == 'RBF' or base_kernel == 'rbf':
+        noncyclic_kernel = gpytorch.kernels.RBFKernel(
+            ard_num_dims=n_noncyclic,
+            active_dims=np.arange(X_dim)[:n_noncyclic]
+        )
+
+    elif base_kernel == 'matern52' or base_kernel == 'Matern52':
+        noncyclic_kernel = gpytorch.kernels.MaternKernel(
+            nu=2.5,
+            ard_num_dims=n_noncyclic,
+            active_dims=np.arange(X_dim)[:n_noncyclic]
+        )
 
     # define kernel for cyclic features
     cyclic_kernel = gpytorch.kernels.PeriodicKernel(
@@ -137,7 +146,6 @@ def gp_train_and_predict(X_train_torch, y_train_torch, X_test_torch):
 
 
 def train_model(model, mll, epochs, X_train_torch, y_train_torch, verbose=False):
-
     model.train()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
