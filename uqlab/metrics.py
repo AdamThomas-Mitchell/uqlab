@@ -132,8 +132,8 @@ def proportion_in_interval(y_true, y_pred_mean, y_pred_std, quantile_level, cali
         p_lower_arr = np.full_like(y_pred_mean, p_lower)
         p_upper_arr = np.full_like(y_pred_mean, p_upper)
 
-        lower_bnd_arr = norm.ppf((p_lower_arr, y_pred_mean, y_pred_std))
-        upper_bnd_arr = norm.ppf((p_upper_arr, y_pred_mean, y_pred_std))
+        lower_bnd_arr = norm.ppf(p_lower_arr, loc=y_pred_mean, scale=y_pred_std)
+        upper_bnd_arr = norm.ppf(p_upper_arr, loc=y_pred_mean, scale=y_pred_std)
 
         num_in_range = np.sum(np.logical_and(lower_bnd_arr <= y_true, y_true <= upper_bnd_arr))
 
