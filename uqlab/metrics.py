@@ -129,31 +129,19 @@ def proportion_in_interval(y_true, y_pred_mean, y_pred_std, quantile_level, cali
         p_lower = 0.5 * (1.0 - quantile_level)
         p_upper = 1.0 - p_lower
 
-        num_in_range = 0
+        p_lower_arr = np.full_like(y_pred_mean, p_lower)
+        p_upper_arr = np.full_like(y_pred_mean, p_upper)
 
-        '''
-        This may be whats slowing down metrics calculation - vectorise 
-        '''
+        lower_bnd_arr = norm.ppf((p_lower_arr, y_pred_mean, y_pred_std))
+        upper_bnd_arr = norm.ppf((p_upper_arr, y_pred_mean, y_pred_std))
 
-
-
-        for j in range(len(y_true)):
-
-            lower_bnd = norm.ppf(p_lower, y_pred_mean[j], y_pred_std[j])
-            upper_bnd = norm.ppf(p_upper, y_pred_mean[j], y_pred_std[j])
-
-            if lower_bnd <= y_true[j] <= upper_bnd:
-                num_in_range += 1
+        num_in_range = np.sum(np.logical_and(lower_bnd_arr <= y_true, y_true <= upper_bnd_arr))
 
     # for calibrated uncertainty
     else:
         # check tuple type
         lower_bnd, upper_bnd = calibrator.calibrate_interval(y_pred_mean, y_pred_std, quantile_level)
-
-        num_in_range = 0
-        for k in range(len(y_true)):
-            if lower_bnd[k] <= y_true[k] <= upper_bnd[k]:
-                num_in_range += 1
+        num_in_range = np.sum(np.logical_and(lower_bnd <= y_true, y_true <= upper_bnd))
 
     prop_in_range = num_in_range / len(y_true)
 
