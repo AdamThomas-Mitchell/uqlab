@@ -4,10 +4,11 @@ import torch
 import gpytorch
 
 
-def manchester_kernel(X_dim, base_kernel='RBF'):
+def manchester_kernel(X_dim, base_kernel='RBF', batch_shape=None):
     """
     Custom kernel for GPyTorch models following manchester convention
     non-cyclic features have an RBF kernel, cyclic features have periodic kernel with period set to 2pi
+    :param batch_shape:
     :param base_kernel:
     :param X_dim:
     :return:
@@ -22,20 +23,23 @@ def manchester_kernel(X_dim, base_kernel='RBF'):
     if base_kernel == 'RBF' or base_kernel == 'rbf':
         noncyclic_kernel = gpytorch.kernels.RBFKernel(
             ard_num_dims=n_noncyclic,
-            active_dims=np.arange(X_dim)[:n_noncyclic]
+            active_dims=np.arange(X_dim)[:n_noncyclic],
+            batch_shape=batch_shape
         )
 
     elif base_kernel == 'matern52' or base_kernel == 'Matern52':
         noncyclic_kernel = gpytorch.kernels.MaternKernel(
             nu=2.5,
             ard_num_dims=n_noncyclic,
-            active_dims=np.arange(X_dim)[:n_noncyclic]
+            active_dims=np.arange(X_dim)[:n_noncyclic],
+            batch_shape=batch_shape
         )
 
     # define kernel for cyclic features
     cyclic_kernel = gpytorch.kernels.PeriodicKernel(
         ard_num_dims=n_cyclic,
         active_dims=np.arange(X_dim)[n_noncyclic:],
+        batch_shape=batch_shape,
         period_length_constraint=gpytorch.constraints.Interval(
             lower_bound=(2.0 * math.pi - 1e-3),
             upper_bound=(2.0 * math.pi + 1e-3)
