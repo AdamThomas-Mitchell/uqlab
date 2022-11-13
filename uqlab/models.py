@@ -20,20 +20,34 @@ def manchester_kernel(X_dim, base_kernel='RBF', batch_shape=None):
     n_cyclic = len(cyclic_dim_idx)
 
     # define kernel for non-cyclic features
-    if base_kernel == 'RBF' or base_kernel == 'rbf':
-        noncyclic_kernel = gpytorch.kernels.RBFKernel(
-            ard_num_dims=n_noncyclic,
-            active_dims=np.arange(X_dim)[:n_noncyclic],
-            batch_shape=batch_shape
-        )
+    if batch_shape is not None:
+        if base_kernel == 'RBF' or base_kernel == 'rbf':
+            noncyclic_kernel = gpytorch.kernels.RBFKernel(
+                ard_num_dims=n_noncyclic,
+                active_dims=np.arange(X_dim)[:n_noncyclic],
+                batch_shape=batch_shape
+            )
 
-    elif base_kernel == 'matern52' or base_kernel == 'Matern52':
-        noncyclic_kernel = gpytorch.kernels.MaternKernel(
-            nu=2.5,
-            ard_num_dims=n_noncyclic,
-            active_dims=np.arange(X_dim)[:n_noncyclic],
-            batch_shape=batch_shape
-        )
+        elif base_kernel == 'matern52' or base_kernel == 'Matern52':
+            noncyclic_kernel = gpytorch.kernels.MaternKernel(
+                nu=2.5,
+                ard_num_dims=n_noncyclic,
+                active_dims=np.arange(X_dim)[:n_noncyclic],
+                batch_shape=batch_shape
+            )
+    else:
+        if base_kernel == 'RBF' or base_kernel == 'rbf':
+            noncyclic_kernel = gpytorch.kernels.RBFKernel(
+                ard_num_dims=n_noncyclic,
+                active_dims=np.arange(X_dim)[:n_noncyclic]
+            )
+
+        elif base_kernel == 'matern52' or base_kernel == 'Matern52':
+            noncyclic_kernel = gpytorch.kernels.MaternKernel(
+                nu=2.5,
+                ard_num_dims=n_noncyclic,
+                active_dims=np.arange(X_dim)[:n_noncyclic]
+            )
 
     # define kernel for cyclic features
     cyclic_kernel = gpytorch.kernels.PeriodicKernel(
