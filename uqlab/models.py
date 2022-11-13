@@ -35,6 +35,18 @@ def manchester_kernel(X_dim, base_kernel='RBF', batch_shape=None):
                 active_dims=np.arange(X_dim)[:n_noncyclic],
                 batch_shape=batch_shape
             )
+
+        # define kernel for cyclic features
+        cyclic_kernel = gpytorch.kernels.PeriodicKernel(
+            ard_num_dims=n_cyclic,
+            active_dims=np.arange(X_dim)[n_noncyclic:],
+            batch_shape=batch_shape,
+            period_length_constraint=gpytorch.constraints.Interval(
+                lower_bound=(2.0 * math.pi - 1e-3),
+                upper_bound=(2.0 * math.pi + 1e-3)
+            )
+        )
+
     else:
         if base_kernel == 'RBF' or base_kernel == 'rbf':
             noncyclic_kernel = gpytorch.kernels.RBFKernel(
@@ -49,16 +61,15 @@ def manchester_kernel(X_dim, base_kernel='RBF', batch_shape=None):
                 active_dims=np.arange(X_dim)[:n_noncyclic]
             )
 
-    # define kernel for cyclic features
-    cyclic_kernel = gpytorch.kernels.PeriodicKernel(
-        ard_num_dims=n_cyclic,
-        active_dims=np.arange(X_dim)[n_noncyclic:],
-        batch_shape=batch_shape,
-        period_length_constraint=gpytorch.constraints.Interval(
-            lower_bound=(2.0 * math.pi - 1e-3),
-            upper_bound=(2.0 * math.pi + 1e-3)
+        # define kernel for cyclic features
+        cyclic_kernel = gpytorch.kernels.PeriodicKernel(
+            ard_num_dims=n_cyclic,
+            active_dims=np.arange(X_dim)[n_noncyclic:],
+            period_length_constraint=gpytorch.constraints.Interval(
+                lower_bound=(2.0 * math.pi - 1e-3),
+                upper_bound=(2.0 * math.pi + 1e-3)
+            )
         )
-    )
 
     # combine non-cyclic and cyclic kernels
     kernel = noncyclic_kernel * cyclic_kernel
