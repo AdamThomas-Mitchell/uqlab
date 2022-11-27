@@ -11,7 +11,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 
 class DataLoader:
-    def __init__(self, scale_output=True, as_tensor=True, random_state=None):
+    def __init__(self, scale_input=True, scale_output=True, as_tensor=True, random_state=None):
+        self.scale_input = scale_input
         self.scale_output = scale_output
         self.as_tensor = as_tensor
         self.random_state = random_state
@@ -134,9 +135,9 @@ class DataLoader:
 
 
 class GlycineLoader(DataLoader):
-    def __init__(self, train_prop, scale_output=True, as_tensor=True, random_state=None):
+    def __init__(self, train_prop, scale_input=True, scale_output=True, as_tensor=True, random_state=None):
 
-        super(GlycineLoader, self).__init__(scale_output, as_tensor, random_state)
+        super(GlycineLoader, self).__init__(scale_input, scale_output, as_tensor, random_state)
         self.train_prop = train_prop
         self.data_dict = self.prepare_glycine_system_data()
 
@@ -283,7 +284,8 @@ class GlycineLoader(DataLoader):
         )
 
         # scale features and targets (optional)
-        X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
+        if self.scale_input:
+            X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
         if self.scale_output:
             y_train, y_cal, y_test, scaler, std = self.scale_targets(y_train, y_cal, y_test)
             self.scaler_dict[atom_label] = scaler  # save this to revert scaling later
@@ -330,8 +332,8 @@ class GlycineLoader(DataLoader):
 
 
 class WaterDimerLoader(DataLoader):
-    def __init__(self, n_train, n_cal, n_test, scale_output=True, as_tensor=True, random_state=None):
-        super(WaterDimerLoader, self).__init__(scale_output, as_tensor, random_state)
+    def __init__(self, n_train, n_cal, n_test, scale_input=True, scale_output=True, as_tensor=True, random_state=None):
+        super(WaterDimerLoader, self).__init__(scale_input, scale_output, as_tensor, random_state)
         self.n_train = n_train
         self.n_cal = n_cal
         self.n_test = n_test
@@ -427,7 +429,8 @@ class WaterDimerLoader(DataLoader):
         )
 
         # scale features and targets (optional)
-        X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
+        if self.scale_input:
+            X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
         if self.scale_output:
             y_train, y_cal, y_test, scaler, std = self.scale_targets(y_train, y_cal, y_test)
             self.scaler_dict[atom_label] = scaler  # save this to revert scaling later
