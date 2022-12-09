@@ -87,11 +87,11 @@ class DataLoader:
 
         # scale non-cyclic features of train, cal, and test set to lie between ±pi
         X_train_sc = X_train.copy()
-        X_train_sc[:, noncyclic_dim_idx] = scaler.transform(X_train[:, noncyclic_dim_idx])
+        X_train_sc[:, noncyclic_dim_idx] = scaler.transform(X_train)[:, noncyclic_dim_idx]
         X_cal_sc = X_cal.copy()
-        X_cal_sc[:, noncyclic_dim_idx] = scaler.transform(X_cal[:, noncyclic_dim_idx])
+        X_cal_sc[:, noncyclic_dim_idx] = scaler.transform(X_cal)[:, noncyclic_dim_idx]
         X_test_sc = X_test.copy()
-        X_test_sc[:, noncyclic_dim_idx] = scaler.transform(X_test[:, noncyclic_dim_idx])
+        X_test_sc[:, noncyclic_dim_idx] = scaler.transform(X_test)[:, noncyclic_dim_idx]
 
         return X_train_sc, X_cal_sc, X_test_sc
 
@@ -192,12 +192,12 @@ class WaterDimerLoader(DataLoader):
         O4_reduced_set = pd.read_csv(stream_O4)
 
         waterDimer_dict = {
+            'O1': O1_reduced_set,
             'H2': H2_reduced_set,
             'H3': H3_reduced_set,
+            'O4': O4_reduced_set,
             'H5': H5_reduced_set,
             'H6': H6_reduced_set,
-            'O1': O1_reduced_set,
-            'O4': O4_reduced_set
         }
 
         return waterDimer_dict
@@ -285,8 +285,7 @@ class WaterDimerLoader(DataLoader):
                 y_train = np.vstack((y_train_init, y_train))
             # if no random points included with min-max-mean initialisation
             else:
-                X_train = X_train_init
-                y_train, = y_train_init
+                X_train, y_train = X_train_init, y_train_init
 
         # scale features and targets (optional)
         if self.scale_input:
