@@ -11,56 +11,89 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 
 class DataLoader:
-    def __init__(self, scale_input=True, scale_output=True, as_tensor=True, random_state=None):
-        self.scale_input = scale_input
-        self.scale_output = scale_output
-        self.as_tensor = as_tensor
-        self.random_state = random_state
+    def __init__(self):
+
         self.scaler_dict = {}
         self.std_dict = {}
         self.data_dict = None
+        self.preprocessed_data_dict = None
+
+        # attributes for preprocessing
+        self.min_max_mean_init = None
+        self.scale_input = None
+        self.scale_output = None
+        self.as_tensor = None
+        self.random_state = None
+
+    @staticmethod
+    def min_max_mean_initialise(X, y):
+
+        # initialise lists for training set
+        X_train, y_train = [], []
+
+        # loop through features of X matrix
+        for i in range(X.shape[1]):
+            # select sample of with min and max value for feature
+            min_idx = np.argwhere(X == min(X[:, i]))[0][0]
+            max_idx = np.argwhere(X == max(X[:, i]))[0][0]
+
+            # find index for sample that is closest to mean value
+            mean = np.mean(X[:, i])
+            dist_to_mean = np.abs(X[:, i] - mean)
+            mean_idx = np.argwhere(dist_to_mean == min(dist_to_mean))[0][0]
+
+            # add selected points to train set
+            X_train.append(X[min_idx, :])
+            X_train.append(X[max_idx, :])
+            X_train.append(X[mean_idx, :])
+
+            y_train.append(y[min_idx, :])
+            y_train.append(y[max_idx, :])
+            y_train.append(y[mean_idx, :])
+
+            # remove points from main set
+            X = np.vstack((X[:min_idx, :], X[min_idx + 1:, :]))
+            X = np.vstack((X[:max_idx, :], X[max_idx + 1:, :]))
+            X = np.vstack((X[:mean_idx, :], X[mean_idx + 1:, :]))
+
+            y = np.vstack((y[:min_idx, :], y[min_idx + 1:, :]))
+            y = np.vstack((y[:max_idx, :], y[max_idx + 1:, :]))
+            y = np.vstack((y[:mean_idx, :], y[mean_idx + 1:, :]))
+
+        # convert training set into numpy array
+        X_train = np.array(X_train)
+        y_train = np.array(y_train)
+
+        return X_train, y_train, X, y
 
     @staticmethod
     def scale_features(X_train, X_cal, X_test):
         """
         Scale only the non-cyclic features between ±pi
-        NOTE: Features are not in same order after this function is called
-        X is of form [X_noncyclic, X_cyclic]
 
         :param X_train:
         :param X_cal:
         :param X_test:
         :return:
         """
-        n_dim = X_train.shape[1]
 
         # list of indices for non-cyclic and cyclic features
+        n_dim = X_train.shape[1]
         noncyclic_dim_idx = [d - 1 for d in range(1, n_dim + 1) if not (d > 3 and d % 3 == 0)]
-        cyclic_dim_idx = [d - 1 for d in range(1, n_dim + 1) if (d > 3 and d % 3 == 0)]
 
-        # decompose X matrices into cyclic and non-cyclic features
-        X_train_cyclic = X_train[:, cyclic_dim_idx]
-        X_train_noncyc = X_train[:, noncyclic_dim_idx]
-
-        X_cal_cyclic = X_cal[:, cyclic_dim_idx]
-        X_cal_noncyc = X_cal[:, noncyclic_dim_idx]
-
-        X_test_cyclic = X_test[:, cyclic_dim_idx]
-        X_test_noncyc = X_test[:, noncyclic_dim_idx]
-
-        # scale non-cyclic features to lie between ±pi
+        # define scaler object
         scaler = MinMaxScaler(feature_range=(-math.pi, math.pi))
-        scaler.fit(X_train_noncyc)
-        X_train_noncyc_sc = scaler.transform(X_train_noncyc)
-        X_cal_noncyc_sc = scaler.transform(X_cal_noncyc)
-        X_test_noncyc_sc = scaler.transform(X_test_noncyc)
+        scaler.fit(X_train)
 
-        # join scaled non-cyclic features and unscaled cyclic features
-        X_train_adj = np.hstack((X_train_noncyc_sc, X_train_cyclic))
-        X_cal_adj = np.hstack((X_cal_noncyc_sc, X_cal_cyclic))
-        X_test_adj = np.hstack((X_test_noncyc_sc, X_test_cyclic))
+        # scale non-cyclic features of train, cal, and test set to lie between ±pi
+        X_train_sc = X_train.copy()
+        X_train_sc[:, noncyclic_dim_idx] = scaler.transform(X_train[:, noncyclic_dim_idx])
+        X_cal_sc = X_cal.copy()
+        X_cal_sc[:, noncyclic_dim_idx] = scaler.transform(X_cal[:, noncyclic_dim_idx])
+        X_test_sc = X_test.copy()
+        X_test_sc[:, noncyclic_dim_idx] = scaler.transform(X_test[:, noncyclic_dim_idx])
 
-        return X_train_adj, X_cal_adj, X_test_adj
+        return X_train_sc, X_cal_sc, X_test_sc
 
     @staticmethod
     def scale_targets(y_train, y_cal, y_test):
@@ -71,7 +104,7 @@ class DataLoader:
         :param y_test:
         :return:
         """
-        # get info for rescaling first
+        # get info for rescaling later
         std = np.std(y_train.flatten())
 
         # now define scaler and transform arrays
@@ -134,12 +167,199 @@ class DataLoader:
         return y_test_unscaled.flatten(), y_pred_mean_unscaled.flatten(), y_pred_std_unscaled
 
 
-class GlycineLoader(DataLoader):
-    def __init__(self, train_prop, scale_input=True, scale_output=True, as_tensor=True, random_state=None):
+class WaterDimerLoader(DataLoader):
+    def __init__(self):
+        super(WaterDimerLoader, self).__init__()
+        self.data_dict = self.get_water_dimer_data()
 
-        super(GlycineLoader, self).__init__(scale_input, scale_output, as_tensor, random_state)
-        self.train_prop = train_prop
-        self.data_dict = self.prepare_glycine_system_data()
+    @staticmethod
+    def get_water_dimer_data():
+        """
+        Import water dimer data and return in dictionary form
+        """
+        stream_H2 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H2_training_set_22k_random.csv')
+        stream_H3 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H3_training_set_22k_random.csv')
+        stream_H5 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H5_training_set_22k_random.csv')
+        stream_H6 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H6_training_set_22k_random.csv')
+        stream_O1 = pkg_resources.resource_stream(__name__, 'data/waterDimer/O1_training_set_22k_random.csv')
+        stream_O4 = pkg_resources.resource_stream(__name__, 'data/waterDimer/O4_training_set_22k_random.csv')
+
+        H2_reduced_set = pd.read_csv(stream_H2)
+        H3_reduced_set = pd.read_csv(stream_H3)
+        H5_reduced_set = pd.read_csv(stream_H5)
+        H6_reduced_set = pd.read_csv(stream_H6)
+        O1_reduced_set = pd.read_csv(stream_O1)
+        O4_reduced_set = pd.read_csv(stream_O4)
+
+        waterDimer_dict = {
+            'H2': H2_reduced_set,
+            'H3': H3_reduced_set,
+            'H5': H5_reduced_set,
+            'H6': H6_reduced_set,
+            'O1': O1_reduced_set,
+            'O4': O4_reduced_set
+        }
+
+        return waterDimer_dict
+
+    @staticmethod
+    def train_cal_test_split(X, y, n_train, n_cal, n_test, random_state=None):
+        """
+        Splits X and y data to train, calibration, and test sets
+        :param X:
+        :param y:
+        :param n_train:
+        :param n_cal:
+        :param n_test:
+        :param random_state:
+        :return:
+        """
+        # separate test set
+        test_size = n_test / (n_train + n_cal + n_test)
+        X_train_and_cal, X_test, y_train_and_cal, y_test = train_test_split(
+            X,
+            y,
+            test_size=test_size,
+            random_state=random_state
+        )
+
+        # separate train and cal sets
+        if n_train > 0:
+            train_size = n_train / (n_train + n_cal)
+            X_train, X_cal, y_train, y_cal = train_test_split(
+                X_train_and_cal, y_train_and_cal,
+                train_size=train_size,
+                random_state=random_state
+            )
+        else:
+            X_cal, y_cal = X_train_and_cal, y_train_and_cal
+            X_train, y_train = None, None
+
+        return X_train, y_train, X_cal, y_cal, X_test, y_test
+
+    def prepare_water_dimer_atom(self, atom_dataset, atom_label, n_train_random, n_cal, n_test):
+        """
+        return preprocessed train, calibration, and test data for given water dimer atom
+        :param n_test:
+        :param n_cal:
+        :param n_train_random:
+        :param atom_dataset:
+        :param atom_label:
+        :return:
+        """
+        # initialise min-max-mean train sets as None
+        X_train_init, y_train_init = None, None
+
+        # select subset of sample points from full atom dataset
+        n_total_pts = n_train_random + n_cal + n_test
+        if self.min_max_mean_init:
+            n_total_pts += (12*3)
+        atom_subset = atom_dataset.sample(n=n_total_pts, random_state=self.random_state)
+
+        # separate X and y values
+        X = atom_subset.iloc[:, :12]
+        y = atom_subset['iqa']
+
+        # restructure data
+        X = X.to_numpy()                   # (num_samples, num_dim)
+        y = y.to_numpy().reshape(-1, 1)    # (num_samples, 1)
+
+        # min-max-mean train set initialisation
+        if self.min_max_mean_init:
+            X_train_init, y_train_init, X, y = self.min_max_mean_initialise(X, y)
+
+        # split into train/calibration/test sets
+        X_train, y_train, X_cal, y_cal, X_test, y_test = self.train_cal_test_split(
+            X,
+            y,
+            n_train=n_train_random,  # check if this should be random or total
+            n_cal=n_cal,
+            n_test=n_test,
+            random_state=self.random_state
+        )
+
+        if self.min_max_mean_init:
+            # if random points for train set included
+            if X_train is not None:
+                X_train = np.vstack((X_train_init, X_train))
+                y_train = np.vstack((y_train_init, y_train))
+            # if no random points included with min-max-mean initialisation
+            else:
+                X_train = X_train_init
+                y_train, = y_train_init
+
+        # scale features and targets (optional)
+        if self.scale_input:
+            X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
+        if self.scale_output:
+            y_train, y_cal, y_test, scaler, std = self.scale_targets(y_train, y_cal, y_test)
+            self.scaler_dict[atom_label] = scaler    # save this to revert scaling later
+            self.std_dict[atom_label] = std
+
+        # prepare as tensors (optional)
+        if self.as_tensor:
+            X_train, y_train, X_cal, y_cal, X_test, y_test = self.prepare_tensors(
+                X_train, y_train, X_cal, y_cal, X_test, y_test
+            )
+
+        atom_data_dict = {
+            'train': (X_train, y_train),
+            'cal': (X_cal, y_cal),
+            'test': (X_test, y_test)
+        }
+
+        return atom_data_dict
+
+    def preprocess_data(self,
+                        n_train_random,
+                        n_cal,
+                        n_test,
+                        min_max_mean_init=False,
+                        scale_input=True,
+                        scale_output=True,
+                        as_tensor=True,
+                        random_state=None):
+        """
+        Return dictionary of preprocessed data for each atom in water dimer system
+        Returned dict is of form;
+
+        dict = {'H1': {'train': (X_train, y_train),
+                       'cal': (X_cal, y_cal),
+                       'test': (X_test, y_test)},
+                'H2': ...}
+
+        :return:
+        """
+        self.min_max_mean_init = min_max_mean_init
+        self.scale_input = scale_input
+        self.scale_output = scale_output
+        self.as_tensor = as_tensor
+        self.random_state = random_state
+
+        waterDimer_dict = self.data_dict
+
+        processed_waterDimer_dict = {
+            key: self.prepare_water_dimer_atom(
+                value,
+                key,
+                n_train_random,
+                n_cal,
+                n_test
+            )
+            for key, value in waterDimer_dict.items()
+        }
+
+        self.preprocessed_data_dict = processed_waterDimer_dict
+
+        return processed_waterDimer_dict
+
+
+class GlycineLoader(DataLoader):
+    def __init__(self):
+        super(GlycineLoader, self).__init__()
+        self.data_dict = self.get_glycine_data()
+        self.train_prop = None
+        self.n_mmm_random = None
 
     @staticmethod
     def get_glycine_data():
@@ -229,12 +449,16 @@ class GlycineLoader(DataLoader):
         # return as dict
         glycine_dict = {
             'C1': (C1_train, C1_test),
-            'C4': (C4_train, C4_test),
-            'C6': (C6_train, C6_test),
-            'C9': (C9_train, C9_test),
-            'C11': (C11_train, C11_test),
+            'N2': (N2_train, N2_test),
             'H3': (H3_train, H3_test),
+            'C4': (C4_train, C4_test),
             'H5': (H5_train, H5_test),
+            'C6': (C6_train, C6_test),
+            'O7': (O7_train, O7_test),
+            'N8': (N8_train, N8_test),
+            'C9': (C9_train, C9_test),
+            'O10': (O10_train, O10_test),
+            'C11': (C11_train, C11_test),
             'H12': (H12_train, H12_test),
             'H13': (H13_train, H13_test),
             'H14': (H14_train, H14_test),
@@ -242,18 +466,13 @@ class GlycineLoader(DataLoader):
             'H16': (H16_train, H16_test),
             'H17': (H17_train, H17_test),
             'H18': (H18_train, H18_test),
-            'H19': (H19_train, H19_test),
-            'N2': (N2_train, N2_test),
-            'N8': (N8_train, N8_test),
-            'O7': (O7_train, O7_test),
-            'O10': (O10_train, O10_test)
+            'H19': (H19_train, H19_test)
         }
 
         return glycine_dict
 
     def prepare_glycine_atom(self, atom_tuple, atom_label):
         """
-
         :param atom_label:
         :param atom_tuple: (train_and_cal_set, test_set)
         :return:
@@ -269,19 +488,41 @@ class GlycineLoader(DataLoader):
         y_test = atom_test['iqa']
 
         # restructure data
-        X_train_cal = X_train_cal.to_numpy()  # (num_samples, num_dim)
-        y_train_cal = y_train_cal.to_numpy().reshape(-1, 1)  # (num_samples, 1)
+        X_train_cal = X_train_cal.to_numpy()                   # (num_samples, num_dim)
+        y_train_cal = y_train_cal.to_numpy().reshape(-1, 1)    # (num_samples, 1)
 
-        X_test = X_test.to_numpy()  # (num_samples, num_dim)
-        y_test = y_test.to_numpy().reshape(-1, 1)  # (num_samples, 1)
+        X_test = X_test.to_numpy()                             # (num_samples, num_dim)
+        y_test = y_test.to_numpy().reshape(-1, 1)              # (num_samples, 1)
 
-        # split train and calibration sets
-        X_train, X_cal, y_train, y_cal = train_test_split(
-            X_train_cal,
-            y_train_cal,
-            train_size=self.train_prop,
-            random_state=self.random_state
-        )
+        # if min-max-mean initialisation
+        if self.min_max_mean_init:
+            X_train_init, y_train_init, X_train_cal, y_train_cal = self.min_max_mean_initialise(X_train_cal,
+                                                                                                y_train_cal)
+            # if random points included in train set initialisation
+            if self.n_mmm_random > 0:
+                train_prop = self.n_mmm_random/X_train_cal.shape[0]
+                X_train_random, X_cal, y_train_random, y_cal = train_test_split(
+                    X_train_cal,
+                    y_train_cal,
+                    train_size=train_prop,
+                    random_state=self.random_state
+                )
+                X_train = np.vstack((X_train_init, X_train_random))
+                y_train = np.vstack((y_train_init, y_train_random))
+
+            # if no random points included in train set initialisation
+            else:
+                X_train, y_train = X_train_init, y_train_init
+                X_cal, y_cal = X_train_cal, y_train_cal
+
+        # if no min-max-mean initialisation
+        else:
+            X_train, X_cal, y_train, y_cal = train_test_split(
+                X_train_cal,
+                y_train_cal,
+                train_size=self.train_prop,
+                random_state=self.random_state
+            )
 
         # scale features and targets (optional)
         if self.scale_input:
@@ -306,7 +547,14 @@ class GlycineLoader(DataLoader):
 
         return atom_data_dict
 
-    def prepare_glycine_system_data(self):
+    def preprocess_data(self,
+                        train_prop=0.75,
+                        min_max_mean_init=False,
+                        num_random_mmm=0,
+                        scale_input=True,
+                        scale_output=True,
+                        as_tensor=True,
+                        random_state=None):
         """
         Return dictionary of preprocessed data for each atom in water dimer system
         Returned dict is of form;
@@ -318,7 +566,15 @@ class GlycineLoader(DataLoader):
 
         :return:
         """
-        glycine_dict = self.get_glycine_data()
+        self.train_prop = train_prop
+        self.min_max_mean_init = min_max_mean_init
+        self.n_mmm_random = num_random_mmm
+        self.scale_input = scale_input
+        self.scale_output = scale_output
+        self.as_tensor = as_tensor
+        self.random_state = random_state
+
+        glycine_dict = self.data_dict
 
         processed_glycine_dict = {
             key: self.prepare_glycine_atom(
@@ -328,148 +584,6 @@ class GlycineLoader(DataLoader):
             for key, value in glycine_dict.items()
         }
 
+        self.preprocessed_data_dict = processed_glycine_dict
+
         return processed_glycine_dict
-
-
-class WaterDimerLoader(DataLoader):
-    def __init__(self, n_train, n_cal, n_test, scale_input=True, scale_output=True, as_tensor=True, random_state=None):
-        super(WaterDimerLoader, self).__init__(scale_input, scale_output, as_tensor, random_state)
-        self.n_train = n_train
-        self.n_cal = n_cal
-        self.n_test = n_test
-        self.data_dict = self.prepare_water_dimer_system_data()
-
-    @staticmethod
-    def train_cal_test_split(X, y, train_size, cal_size, test_size, random_state=None):
-        """
-        Splits X and y data to train, calibration, and test sets
-        :param X:
-        :param y:
-        :param train_size:
-        :param cal_size:
-        :param test_size:
-        :param random_state:
-        :return:
-        """
-
-        # separate test set
-        X_train_and_cal, X_test, y_train_and_cal, y_test = train_test_split(
-            X, y,
-            test_size=test_size,
-            random_state=random_state
-        )
-
-        # separate train and cal sets
-        train_prop = train_size / (train_size + cal_size)
-        X_train, X_cal, y_train, y_cal = train_test_split(
-            X_train_and_cal, y_train_and_cal,
-            train_size=train_prop,
-            random_state=random_state
-        )
-
-        return X_train, y_train, X_cal, y_cal, X_test, y_test
-
-    @staticmethod
-    def get_water_dimer_data():
-        """
-        Import water dimer data and return in dictionary form
-        """
-        stream_H2 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H2_training_set_22k_random.csv')
-        stream_H3 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H3_training_set_22k_random.csv')
-        stream_H5 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H5_training_set_22k_random.csv')
-        stream_H6 = pkg_resources.resource_stream(__name__, 'data/waterDimer/H6_training_set_22k_random.csv')
-        stream_O1 = pkg_resources.resource_stream(__name__, 'data/waterDimer/O1_training_set_22k_random.csv')
-        stream_O4 = pkg_resources.resource_stream(__name__, 'data/waterDimer/O4_training_set_22k_random.csv')
-
-        H2_reduced_set = pd.read_csv(stream_H2)
-        H3_reduced_set = pd.read_csv(stream_H3)
-        H5_reduced_set = pd.read_csv(stream_H5)
-        H6_reduced_set = pd.read_csv(stream_H6)
-        O1_reduced_set = pd.read_csv(stream_O1)
-        O4_reduced_set = pd.read_csv(stream_O4)
-
-        waterDimer_dict = {
-            'H2': H2_reduced_set,
-            'H3': H3_reduced_set,
-            'H5': H5_reduced_set,
-            'H6': H6_reduced_set,
-            'O1': O1_reduced_set,
-            'O4': O4_reduced_set
-        }
-
-        return waterDimer_dict
-
-    def prepare_water_dimer_atom(self, atom_dataset, atom_label):
-        """
-        return preprocessed train, calibration, and test data for given water dimer atom
-        :param atom_dataset:
-        :param atom_label:
-        :return:
-        """
-        # select subset of sample points from full atom dataset
-        n_total_pts = self.n_train + self.n_cal + self.n_test
-        atom_subset = atom_dataset.sample(n=n_total_pts, random_state=self.random_state)
-
-        # separate X and y values
-        X = atom_subset.iloc[:, 0:12]
-        y = atom_subset['iqa']
-
-        # restructure data
-        X = X.to_numpy()  # (num_samples, num_dim)
-        y = y.to_numpy().reshape(-1, 1)  # (num_samples, 1)
-
-        # split into train/calibration/test sets
-        train_prop = self.n_train / n_total_pts
-        cal_prop = self.n_cal / n_total_pts
-        test_prop = 1.0 - (train_prop + cal_prop)
-        X_train, y_train, X_cal, y_cal, X_test, y_test = self.train_cal_test_split(
-            X, y,
-            train_size=train_prop, cal_size=cal_prop, test_size=test_prop,
-            random_state=self.random_state
-        )
-
-        # scale features and targets (optional)
-        if self.scale_input:
-            X_train, X_cal, X_test = self.scale_features(X_train, X_cal, X_test)
-        if self.scale_output:
-            y_train, y_cal, y_test, scaler, std = self.scale_targets(y_train, y_cal, y_test)
-            self.scaler_dict[atom_label] = scaler  # save this to revert scaling later
-            self.std_dict[atom_label] = std
-
-        # prepare as tensors (optional)
-        if self.as_tensor:
-            X_train, y_train, X_cal, y_cal, X_test, y_test = self.prepare_tensors(
-                X_train, y_train, X_cal, y_cal, X_test, y_test
-            )
-
-        atom_data_dict = {
-            'train': (X_train, y_train),
-            'cal': (X_cal, y_cal),
-            'test': (X_test, y_test)
-        }
-
-        return atom_data_dict
-
-    def prepare_water_dimer_system_data(self):
-        """
-        Return dictionary of preprocessed data for each atom in water dimer system
-        Returned dict is of form;
-
-        dict = {'H1': {'train': (X_train, y_train),
-                       'cal': (X_cal, y_cal),
-                       'test': (X_test, y_test)},
-                'H2': ...}
-
-        :return:
-        """
-        waterDimer_dict = self.get_water_dimer_data()
-
-        processed_waterDimer_dict = {
-            key: self.prepare_water_dimer_atom(
-                value,
-                key
-            )
-            for key, value in waterDimer_dict.items()
-        }
-
-        return processed_waterDimer_dict
