@@ -8,6 +8,14 @@ import gpytorch
 
 
 def RBFManchesterKernel(X_dim, batch_shape=None):
+    """
+    Custom kernel for GPyTorch models following manchester convention,
+    using RBF kernel for non-cyclic features
+
+    :param X_dim:        Dimension of feature array
+    :param batch_shape:  batch shape for use when minibatching
+    :return:
+    """
     # determine cyclic and non-cyclic dimensions
     noncyclic_dim_idx = [dim - 1 for dim in range(1, X_dim + 1) if not (dim > 3 and dim % 3 == 0)]
     cyclic_dim_idx = [dim - 1 for dim in range(1, X_dim + 1) if (dim > 3 and dim % 3 == 0)]
@@ -62,6 +70,14 @@ def RBFManchesterKernel(X_dim, batch_shape=None):
 
 
 def MaternManchesterKernel(X_dim, batch_shape=None):
+    """
+    Custom kernel for GPyTorch models following manchester convention,
+    using Matern52 kernel for non-cyclic features
+
+    :param X_dim:        Dimension of feature array
+    :param batch_shape:  batch shape for use when minibatching
+    :return:
+    """
     # determine cyclic and non-cyclic dimensions
     noncyclic_dim_idx = [dim - 1 for dim in range(1, X_dim + 1) if not (dim > 3 and dim % 3 == 0)]
     cyclic_dim_idx = [dim - 1 for dim in range(1, X_dim + 1) if (dim > 3 and dim % 3 == 0)]
