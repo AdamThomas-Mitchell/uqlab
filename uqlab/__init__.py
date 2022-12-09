@@ -8,8 +8,14 @@ from .preprocessing import (
     GlycineLoader
 )
 
+from .kernels import (
+    RBFManchesterKernel,
+    MaternManchesterKernel
+)
+
 from .models import (
-    manchester_kernel
+    GaussianProcess,
+    StudentTProcess
 )
 
 from .calibration import (
