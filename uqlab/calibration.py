@@ -17,6 +17,8 @@ class Crude:
         self.mu_cal = mu_cal.flatten()
         self.sigma_cal = sigma_cal.flatten()
         self.epsilon_estimate = self.estimate_noise_distribution()
+        self.epsilon_expected_val = self.calculate_epsilon_expected_val()
+        self.epsilon_variance = self.calculate_epsilon_variance()
 
     def estimate_noise_distribution(self):
         """
@@ -50,3 +52,25 @@ class Crude:
         upper_quantile = mu_test + (sigma_test * z_upper)  # check if variance or std required
 
         return lower_quantile, upper_quantile
+
+    def calculate_epsilon_expected_val(self):
+        epsilon_expected_val = np.mean(self.epsilon_estimate)
+        return epsilon_expected_val
+
+    def calculate_epsilon_variance(self):
+
+        epsilon = self.epsilon_estimate
+        epsilon_exp_val = self.epsilon_expected_val
+
+        summation = np.square(epsilon - np.full_like(epsilon, epsilon_exp_val))
+        epsilon_var = np.mean(summation)
+
+        return epsilon_var
+
+    def calibrate_mean(self, mu_test, sigma_test):
+        mean_recal = mu_test + sigma_test*self.epsilon_expected_val
+        return mean_recal
+
+    def calibrate_variance(self, sigma_test):
+        var_recal = np.square(sigma_test) * self.epsilon_variance
+        return var_recal
